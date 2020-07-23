@@ -7,5 +7,5 @@ App:
   </p>
 Schematic:
   <p>
-     <img src="https://github.com/chungnat/PC_Monitor/blob/master/Details/image.png" alt="App View"/>
+     <img src="https://github.com/chungnat/PC_Monitor/blob/master/Details/Schematic.png" alt="schematic"/>
   </p>
