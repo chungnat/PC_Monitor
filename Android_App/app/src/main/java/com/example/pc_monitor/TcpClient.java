@@ -1,5 +1,7 @@
 package com.example.pc_monitor;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.util.Log;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -12,7 +14,7 @@ import java.net.Socket;
 public class TcpClient {
 
     public static final String TAG = TcpClient.class.getSimpleName();
-    public static final String SERVER_IP = "192.168.1.2"; //server IP address
+    public static final String SERVER_IP = "192.168.1.5"; //server IP address
     public static final int SERVER_PORT = 80;
     // message to send to the server
     private String mServerMessage;

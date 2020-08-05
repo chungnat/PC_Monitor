@@ -53,9 +53,9 @@ public class MainActivity extends AppCompatActivity {
     public static Switch timeSwitch;
     public static TextView timeStatusTv;
     public PendingIntent wakeIntent;
+    public static Context mainContext;
     ConnectTask task;
-    SharedPreferences sharedPref;
-
+    public static SharedPreferences sharedPref;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -73,6 +73,7 @@ public class MainActivity extends AppCompatActivity {
         timeSwitch = findViewById(R.id.timeSwitch);
         timeStatusTv = findViewById(R.id.timeStatusTV);
 
+
         // Restoring previous state from saved preferences
         sharedPref = this.getPreferences(Context.MODE_PRIVATE);
         String status = sharedPref.getString("Status", "Status: Sleeping");
@@ -89,59 +90,43 @@ public class MainActivity extends AppCompatActivity {
         else {
             timeStatusTv.setVisibility(View.INVISIBLE);
         }
-
         AlarmManager alarmManager = (AlarmManager) this.getSystemService(Context.ALARM_SERVICE);
-
+        connectionTv.setVisibility(View.INVISIBLE);
         // Execute WiFi Thread
         task = new ConnectTask();
         task.execute("");
-
-        // Allow time for app to connect to arduino
-        new CountDownTimer(4000, 1000) {
-            public void onTick(long millisUntilFinished) {
-                sleepWakeBtn.setClickable(false);
-                statusBtn.setClickable(false);
-            }
-            public void onFinish() {
-                connectionTv.setVisibility(View.INVISIBLE);
-                sleepWakeBtn.setClickable(true);
-                statusBtn.setClickable(true);
-                Toast.makeText(getApplicationContext(), "Connected to Arduino!", Toast.LENGTH_SHORT).show();
-            }
-        }.start();
-
-
-
 
         // Listener for sleep/Wake Button
         // ONClick, it will send a message through the TCP Client, or set up a connection if disconnected
         sleepWakeBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                //sends the message to the server
+                // Sends the message to the server
                 if (task.isCancelled()) {
-                    Toast.makeText(getApplicationContext(), "Connection Timed Out, Reconnecting...", Toast.LENGTH_SHORT).show();
-                    connectionTv.setVisibility(View.VISIBLE);
                     task = new ConnectTask();
                     task.execute("");
-                    new CountDownTimer(4000, 1000) {
-                        public void onTick(long millisUntilFinished) {
-                            sleepWakeBtn.setClickable(false);
-                            statusBtn.setClickable(false);
-                        }
-                        public void onFinish() {
-                            connectionTv.setVisibility(View.INVISIBLE);
-                            sleepWakeBtn.setClickable(true);
-                            statusBtn.setClickable(true);
-                            mTcpClient.sendMessage(wakeKey);
-                            Toast.makeText(getApplicationContext(), "Command Sent!", Toast.LENGTH_SHORT).show();
-                        }
-                    }.start();
                 }
-                else {
-                    mTcpClient.sendMessage(wakeKey);
-                    Toast.makeText(getApplicationContext(), "Command Sent!", Toast.LENGTH_SHORT).show();
-                }
+                // Allow time for client to connect to Arduino
+                new CountDownTimer(100, 1000) {
+                    public void onTick(long millisUntilFinished) {
+                        sleepWakeBtn.setClickable(false);
+                        statusBtn.setClickable(false);
+                    }
+                    public void onFinish() {
+                        // Send Wake key, then close connection
+                        new CountDownTimer(200, 1000) {
+                            public void onTick(long millisUntilFinished) {
+                                mTcpClient.sendMessage(wakeKey);
+                            }
+                            public void onFinish() {
+                                sleepWakeBtn.setClickable(true);
+                                statusBtn.setClickable(true);
+                                Toast.makeText(getApplicationContext(), "Command Sent!", Toast.LENGTH_SHORT).show();
+                                task.cancelClient();
+                            }
+                        }.start();
+                    }
+                }.start();
             }
         });
 
@@ -153,28 +138,29 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 //sends the message to the server
                 if (task.isCancelled()) {
-                    Toast.makeText(getApplicationContext(), "Connection Timed Out, Reconnecting...", Toast.LENGTH_SHORT).show();
-                    connectionTv.setVisibility(View.VISIBLE);
                     task = new ConnectTask();
                     task.execute("");
-                    new CountDownTimer(4000, 1000) {
-                        public void onTick(long millisUntilFinished) {
-                            sleepWakeBtn.setClickable(false);
-                            statusBtn.setClickable(false);
-                        }
-                        public void onFinish() {
-                            connectionTv.setVisibility(View.INVISIBLE);
-                            sleepWakeBtn.setClickable(true);
-                            statusBtn.setClickable(true);
-                            mTcpClient.sendMessage(updateKey);
-                            Toast.makeText(getApplicationContext(), "Updated!", Toast.LENGTH_SHORT).show();
-                        }
-                    }.start();
                 }
-                else {
-                    mTcpClient.sendMessage(updateKey);
-                    Toast.makeText(getApplicationContext(), "Updated!", Toast.LENGTH_SHORT).show();
-                }
+                Toast.makeText(getApplicationContext(), "Updating...", Toast.LENGTH_SHORT).show();
+                // Allow time for client to connect to Arduino
+                new CountDownTimer(100, 1000) {
+                    public void onTick(long millisUntilFinished) {}
+                    public void onFinish() {
+                        mTcpClient.sendMessage(updateKey);
+                        // Allow time for Arduino to send data
+                        new CountDownTimer(3000, 1000) {
+                            public void onTick(long millisUntilFinished) {
+                                sleepWakeBtn.setClickable(false);
+                                statusBtn.setClickable(false);
+                            }
+                            public void onFinish() {
+                                sleepWakeBtn.setClickable(true);
+                                statusBtn.setClickable(true);
+                                Toast.makeText(getApplicationContext(), "Updated!", Toast.LENGTH_SHORT).show();
+                            }
+                        }.start();
+                    }
+                }.start();
             }
         });
 
@@ -266,56 +252,56 @@ public class MainActivity extends AppCompatActivity {
         newFragment.show(getSupportFragmentManager(), "timePicker");
     }
 
-    private class ConnectThread extends Thread {
-        private final BluetoothSocket mmSocket;
-        private final BluetoothDevice HC05;  // Desired bluetooth device to connect to
-        private static final String TAG = "PC_Monitor";
-        private final UUID MY_UUID;
-
-        public ConnectThread(BluetoothDevice device) {
-            // Use a temporary object that is later assigned to mmSocket
-            // because mmSocket is final.
-            BluetoothSocket tmp = null;
-            HC05 = device;
-            String UU_ID = "00001101-0000-1000-8000-00805f9b34fb";
-            MY_UUID = UUID.fromString(UU_ID);
-            try {
-                // Get a BluetoothSocket to connect with the given BluetoothDevice.
-                // MY_UUID is the app's UUID string, also used in the server code.
-                tmp = HC05.createRfcommSocketToServiceRecord(MY_UUID);
-            } catch (IOException e) {
-                Log.e(TAG, "Socket's create() method failed", e);
-            }
-            mmSocket = tmp;
-        }
-
-        public void run() {
-            // Cancel discovery because it otherwise slows down the connection.
-            bluetoothAdapter.cancelDiscovery();
-            try {
-                // Connect to the remote device through the socket. This call blocks
-                // until it succeeds or throws an exception.
-                mmSocket.connect();
-                btSocket = mmSocket;
-            } catch (IOException connectException) {
-                // Unable to connect; close the socket and return.
-                try {
-                    mmSocket.close();
-                } catch (IOException closeException) {
-                    Log.e(TAG, "Could not close the client socket", closeException);
-                }
-            }
-        }
-
-        // Closes the client socket and causes the thread to finish.
-        public void cancel() {
-            try {
-                mmSocket.close();
-            } catch (IOException e) {
-                Log.e(TAG, "Could not close the client socket", e);
-            }
-        }
-    }
+//    private class ConnectThread extends Thread {
+//        private final BluetoothSocket mmSocket;
+//        private final BluetoothDevice HC05;  // Desired bluetooth device to connect to
+//        private static final String TAG = "PC_Monitor";
+//        private final UUID MY_UUID;
+//
+//        public ConnectThread(BluetoothDevice device) {
+//            // Use a temporary object that is later assigned to mmSocket
+//            // because mmSocket is final.
+//            BluetoothSocket tmp = null;
+//            HC05 = device;
+//            String UU_ID = "00001101-0000-1000-8000-00805f9b34fb";
+//            MY_UUID = UUID.fromString(UU_ID);
+//            try {
+//                // Get a BluetoothSocket to connect with the given BluetoothDevice.
+//                // MY_UUID is the app's UUID string, also used in the server code.
+//                tmp = HC05.createRfcommSocketToServiceRecord(MY_UUID);
+//            } catch (IOException e) {
+//                Log.e(TAG, "Socket's create() method failed", e);
+//            }
+//            mmSocket = tmp;
+//        }
+//
+//        public void run() {
+//            // Cancel discovery because it otherwise slows down the connection.
+//            bluetoothAdapter.cancelDiscovery();
+//            try {
+//                // Connect to the remote device through the socket. This call blocks
+//                // until it succeeds or throws an exception.
+//                mmSocket.connect();
+//                btSocket = mmSocket;
+//            } catch (IOException connectException) {
+//                // Unable to connect; close the socket and return.
+//                try {
+//                    mmSocket.close();
+//                } catch (IOException closeException) {
+//                    Log.e(TAG, "Could not close the client socket", closeException);
+//                }
+//            }
+//        }
+//
+//        // Closes the client socket and causes the thread to finish.
+//        public void cancel() {
+//            try {
+//                mmSocket.close();
+//            } catch (IOException e) {
+//                Log.e(TAG, "Could not close the client socket", e);
+//            }
+//        }
+//    }
 
     @SuppressLint("StaticFieldLeak")
     private class ConnectTask extends AsyncTask<String, String, TcpClient> {
@@ -362,6 +348,10 @@ public class MainActivity extends AppCompatActivity {
             }
             Log.d("test", "response " + values[0]);
             //process server response here...
+            cancelClient();
+        }
+
+        public void cancelClient() {
             mTcpClient.stopClient();
             cancelTask();
         }

@@ -16,26 +16,26 @@ void setup() {
   Serial.println("");
   Serial.println("Connecting to WiFi");
   
-  delay(8000); //Allow ESP8266 to connect to wifi
+  delay(4000); //Allow ESP8266 to connect to wifi
   while (ESPserial.available()){
      String inData = ESPserial.readStringUntil('\n');
      Serial.println(inData);
   }  
   ESPserial.println("AT+CIPMUX=1");
-  delay(200);
+  delay(30);
   while (ESPserial.available()){
      String inData = ESPserial.readStringUntil('\n');
      Serial.println("Configuring Server: " + inData);
   }  
   ESPserial.println("AT+CIPSERVER=1,80");
-  delay(200);
+  delay(30);
   while (ESPserial.available()){
      String inData = ESPserial.readStringUntil('\n');
      Serial.println("Opening server at port 80: " + inData);
   }  
   Serial.println("IP and MAC Address:");
   ESPserial.println("AT+CIFSR");
-  delay(200);
+  delay(30);
   while (ESPserial.available()){
      String inData = ESPserial.readStringUntil('\n');
      Serial.println(inData);
@@ -43,39 +43,26 @@ void setup() {
 }
 
 void loop() {
-  if (Serial.available() > 0) { // Check for a connection to the Bluetooth module
-    ESPserial.write(Serial.read());
-  }
-  
+
   while (ESPserial.available()){
     String inData = ESPserial.readStringUntil('\n');
     if(inData.startsWith("+IPD,0,17:ZOyMzWG9IJWa2xu6")) { // ESP was sent wake key, call sleepWake and close the connection
       Serial.println("WakeKey Matched!");
-      sleepWake();
+      //sleepWake();
       ESPserial.println("AT+CIPCLOSE=0");
-      delay(200);
+      delay(30);
       while (ESPserial.available()){
          inData = ESPserial.readStringUntil('\n');
          Serial.println("Closing " + inData);
       } 
     }
-    else if(inData.startsWith("+IPD,0,17:H83ENi9gzq8lEXxt")) { // updateKey
+    else if(inData.startsWith("+IPD,0,17:H83ENi9gzq8lEXxt")) { // updateKey sent, send over data
       Serial.println("UpdateKey Matched!");
-      ESPserial.println("AT+CIPCLOSE=0");
-      delay(200);
-      while (ESPserial.available()){
-         inData = ESPserial.readStringUntil('\n');
-         Serial.println("Closing " + inData);
-      }
-    }
-    else if(inData.startsWith("0,CONNECT")) {  // Arduino connected to phone, send over updated status
-      Serial.println("Connected");
       float temp = readTemp();
       int intTemp = round(temp);
       String toString = String(intTemp, DEC);
       String tempValue = toString + "ºC";
       String temperature = "Temperature: " + tempValue;
-      delay(100);
       int light = analogRead(A0);
       Serial.println(light);
       Serial.println(temperature);
@@ -84,18 +71,33 @@ void loop() {
       }
       else {
         sendData("Status: Sleeping");
-      }  
+      }
+      delay(100);  
       sendData(temperature);
+      delay(100);
+      ESPserial.println("AT+CIPCLOSE=0");
+      delay(30);
+      while (ESPserial.available()){
+         inData = ESPserial.readStringUntil('\n');
+         Serial.println("Closing " + inData);
+      }
+    }
+    else if(inData.startsWith("0,CONNECT")) {  // Arduino connected to phone
+      Serial.println("Connected");
     }
     else {
       Serial.println(inData);
     }
   } 
+  // listen for user input and send it to the ESP8266
+  if (Serial.available()) {
+    ESPserial.write(Serial.read()); 
+  }
 }
 
 void sleepWake() {
     digitalWrite(relaySwitch, HIGH);
-    delay(200);
+    delay(300);
     Serial.print("Sleep/Wake\n");
     digitalWrite(relaySwitch, LOW);
 }
@@ -104,12 +106,12 @@ void sendData(String message) {
   String command = "AT+CIPSEND=0,";
   String fullCommand = command + message.length();
   ESPserial.println(fullCommand);
-  delay(200);
+  delay(30);
   while (ESPserial.available()){
     String inData = ESPserial.readStringUntil('\n');
     Serial.println("Sending " + inData);
   }  
-  delay(200);
+  delay(30);
   ESPserial.println(message);
   delay(200);
     while (ESPserial.available()){
@@ -120,7 +122,7 @@ void sendData(String message) {
 
 float readTemp() {
   int temp = analogRead(tempPin);
-  delay(100);
+  delay(30);
   temp = analogRead(tempPin);
   float voltTemp = temp * ((float)5 / 1024);
   float actualTemp = (voltTemp - 0.5) * 100;
