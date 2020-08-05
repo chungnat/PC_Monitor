@@ -48,7 +48,7 @@ void loop() {
     String inData = ESPserial.readStringUntil('\n');
     if(inData.startsWith("+IPD,0,17:ZOyMzWG9IJWa2xu6")) { // ESP was sent wake key, call sleepWake and close the connection
       Serial.println("WakeKey Matched!");
-      //sleepWake();
+      sleepWake();
       ESPserial.println("AT+CIPCLOSE=0");
       delay(30);
       while (ESPserial.available()){
